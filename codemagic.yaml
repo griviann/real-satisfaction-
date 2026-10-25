@@ -1,20 +1,25 @@
 workflows:
   android-apk:
     name: Real Satisfaction Android Only
+    max_build_duration: 20
     instance_type: mac_mini_m2
-    max_build_duration: 30
     environment:
       flutter: stable
+      xcode: latest
+      cocoapods: default
     scripts:
       - name: Get Flutter packages
-        script: flutter pub get
-      - name: Ensure Android folder
+        script: |
+          flutter clean
+          flutter pub get
+      - name: Ensure Android folder exists
         script: |
           if [ ! -d "android" ]; then
-            flutter create . --platforms=android --project-name real_satisfaction
+            flutter create . --platforms=android
           fi
       - name: Build APK
-        script: flutter build apk --release --no-tree-shake-icons
+        script: |
+          flutter build apk --release --no-tree-shake-icons
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
-      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/apk/release/app-release.apk
