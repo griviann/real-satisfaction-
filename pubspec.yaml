@@ -1,0 +1,15 @@
+name: real_satisfaction
+description: Real Satisfaction Cockpit v2.2 - Fearless + Peace - No Hallucination
+publish_to: 'none'
+version: 2.2.0+22
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.2.2
+  http: ^1.1.0
+  workmanager: ^0.5.2
+  flutter_local_notifications: ^16.3.0
+flutter:
+  uses-material-design: true
