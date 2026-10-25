@@ -2,12 +2,15 @@ workflows:
   real-satisfaction-live:
     name: Real Satisfaction Handler Live
     max_build_duration: 10
-    instance_type: linux
+    instance_type: mac_mini_m2
     environment:
       groups:
         - real_satisfaction_keys
       vars:
         VERIFY_TOKEN: "RealSatisfactionVerify2026"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
     scripts:
       - name: Install
         script: |
