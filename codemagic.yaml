@@ -6,8 +6,10 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Get packages
-        script: flutter packages pub get
+      - name: Create Android project
+        script: |
+          flutter create . --platforms=android --project-name real_satisfaction
+          flutter packages pub get
       - name: Build APK
         script: flutter build apk --release
     artifacts:
