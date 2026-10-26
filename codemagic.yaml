@@ -1,42 +1,13 @@
 workflows:
-  real-satisfaction:
-    name: Real Satisfaction Dynamic
-    instance_type: linux_x2
-    max_build_duration: 20
+  real-bot:
+    name: Real Satisfaction Bot
+    instance_type: linux
+    max_build_duration: 10
     environment:
       groups:
         - fb_tokens
     scripts:
-      - name: Install deps
+      - name: Post dynamic
         script: |
-          pip3 install -r requirements.txt
           pip3 install groq requests
-      - name: Post Dynamic - No Monotony
-        script: |
-          python3 << 'PY'
-          import os, random, requests
-          from groq import Groq
-          
-          client = Groq(api_key=os.getenv('GROQ_API_KEY'))
-          topics = [
-              {"t": "Afya mashinani Kenya", "link": "https://www.health.go.ke"},
-              {"t": "Budget 2026 kwa mwananchi", "link": "https://www.treasury.go.ke"},
-              {"t": "IEBC na amani", "link": "https://www.iebc.or.ke"},
-              {"t": "Kilimo biashara vijana", "link": "https://www.kilimo.go.ke"},
-          ]
-          chosen = random.choice(topics)
-          
-          prompt = f"Andika post fupi ya Real Satisfaction kuhusu {chosen['t']}, 20 words, Kiswahili, hopeful, bila matusi"
-          resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}])
-          text = resp.choices[0].message.content.strip()
-          
-          if "mjinga" in text.lower() or "punda" in text.lower():
-              print("HIDE - filtered")
-              exit(0)
-              
-          full = f"{text} {chosen['link']} #RealSatisfaction"
-          token = os.getenv('FB_PAGE_ACCESS_TOKEN')
-          page_id = os.getenv('FB_PAGE_ID')
-          r = requests.post(f"https://graph.facebook.com/{page_id}/feed", data={"message": full, "access_token": token, "link": chosen['link']})
-          print(f"POSTED: {full} -> {r.text}")
-          PY
+          python3 app.py
