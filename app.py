@@ -1,275 +1,42 @@
-
 import os
-import sys
-import random
-import logging
-import requests
+from groq import Groq
+import google.generativeai as genai
 
-# ==================================================
-# RealSatisfaction Bot - Kisumu, Kenya
-# ==================================================
+# Setup both
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    stream=sys.stdout,
-)
-log = logging.getLogger("RealSatisfaction")
-
-# --- ENVIRONMENT VARIABLES ---
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-PAGE_TOKEN = (
-    os.getenv("FB_PAGE_ACCESS_TOKEN")
-    or os.getenv("PAGE_TOKEN")
-    or os.getenv("FB_PAGE_TOKEN")
-)
-
-PAGE_ID = os.getenv("FB_PAGE_ID") or os.getenv("PAGE_ID")
-
-if not GROQ_API_KEY or not PAGE_TOKEN or not PAGE_ID:
-    log.error(
-        "MISSING ENV | GROQ=%s | PAGE_TOKEN=%s | PAGE_ID=%s",
-        "OK" if GROQ_API_KEY else "MISSING",
-        "OK" if PAGE_TOKEN else "MISSING",
-        "OK" if PAGE_ID else "MISSING",
-    )
-    sys.exit(1)
-
-# --- CONTENT PILLARS ---
-PILLARS = [
-    (
-        "Biashara Ndogo",
-        "Vidokezo vya biashara ndogo, wateja, masoko "
-        "na usimamizi wa pesa Kisumu."
-    ),
-    (
-        "Mazingira na Ziwa Victoria",
-        "Usafi wa Ziwa Victoria, utunzaji wa taka "
-        "na mazingira safi Kisumu."
-    ),
-    (
-        "Afya na Lishe",
-        "Afya ya jamii, lishe bora na elimu ya afya."
-    ),
-    (
-        "Elimu na Vijana",
-        "Elimu, ujuzi, kujifunza na fursa za vijana Kisumu."
-    ),
-    (
-        "Utalii Kisumu",
-        "Utalii wa Kisumu, Dunga, Kit Mikayi "
-        "na Kisumu Impala Sanctuary."
-    ),
-    (
-        "Kilimo Kisumu",
-        "Kilimo cha kisasa, ufugaji wa samaki, "
-        "mpunga wa Ahero na biashara ya mazao."
-    ),
-]
-
-# Basic moderation filter, not a complete safety system.
-BLOCKED_WORDS = (
-    "mjinga",
-    "punda",
-    "matako",
-    "umbwa",
-)
-
-GROQ_URL = (
-    "https://api.groq.com/openai/v1/chat/completions"
-)
-
-GROQ_MODEL = "llama-3.3-70b-versatile"
-
-# Set FACEBOOK_API_VERSION as a GitHub variable if needed.
-# Verify the version is supported by your Meta app.
-API_VERSION = os.getenv("FACEBOOK_API_VERSION", "v23.0")
-
-FACEBOOK_URL = (
-    f"https://graph.facebook.com/"
-    f"{API_VERSION}/{PAGE_ID}/feed"
-)
-
-
-def generate_post(topic, context):
-    """Generate a short Kiswahili Facebook post."""
-
-    prompt = (
-        f"Andika post fupi ya Facebook kuhusu {topic}. "
-        f"Muktadha: {context}. "
-        "Tumia Kiswahili rahisi, sanifu na kinachoeleweka "
-        "kwa watu wa Kisumu. Ujumbe uwe chanya, wenye "
-        "heshima na manufaa kwa jamii. "
-        "Usizidi sentensi mbili au herufi 280. "
-        "Tumia hashtag zisizozidi mbili. "
-        "Usibuni takwimu, habari au madai yasiyothibitishwa. "
-        "Usitaje kuwa wewe ni AI. "
-        "Rudisha ujumbe pekee."
-    )
-
+def get_ai_reply(user_text):
+    # 1. Try GROQ Llama first (free, fast)
     try:
-        response = requests.post(
-            GROQ_URL,
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": GROQ_MODEL,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 120,
-                "temperature": 0.7,
-            },
-            timeout=30,
+        resp = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": user_text}],
+            temperature=0.7,
+            max_tokens=1024
         )
+        msg = resp.choices[0].message
+        content = getattr(msg, 'content', None) or ""
+        reasoning = getattr(msg, 'reasoning_content', None) or ""
+        final = content.strip() or reasoning.strip()
+        if final:
+            return final
+    except Exception as e:
+        print(f"Groq failed: {e}")
 
-        if not response.ok:
-            log.error(
-                "ERROR | stage=groq | status=%s | response=%s",
-                response.status_code,
-                response.text[:300],
-            )
-            raise RuntimeError("Groq API request failed")
-
-        data = response.json()
-
-    except requests.RequestException as exc:
-        log.error(
-            "ERROR | stage=groq_network | type=%s",
-            type(exc).__name__,
-        )
-        raise
-
-    except ValueError:
-        log.error("ERROR | stage=groq_json")
-        raise
-
-    choices = data.get("choices", [])
-
-    if not choices:
-        error = data.get("error", {})
-        log.error(
-            "ERROR | stage=groq_response | detail=%s",
-            str(error)[:250],
-        )
-        raise RuntimeError("Groq returned no choices")
-
-    post = choices[0].get("message", {}).get("content", "")
-    post = post.strip()
-
-    if not post:
-        log.error("ERROR | stage=groq_response | empty_post")
-        raise RuntimeError("Groq returned empty text")
-
-    # Enforce maximum length.
-    if len(post) > 280:
-        post = post[:277].rstrip() + "..."
-
-    log.info("GROQ_OK | characters=%s", len(post))
-    return post
-
-
-def moderate_post(post, topic):
-    """Hide posts containing configured blocked words."""
-
-    lowered = post.casefold()
-
-    for word in BLOCKED_WORDS:
-        if word.casefold() in lowered:
-            log.warning(
-                "HIDE | reason=blocked_word | topic=%s",
-                topic,
-            )
-            return False
-
-    return True
-
-
-def publish_post(post, topic):
-    """Publish an approved post to the Facebook Page."""
-
-    if not moderate_post(post, topic):
-        return
-
+    # 2. Fallback to Gemini if Groq fails
     try:
-        response = requests.post(
-            FACEBOOK_URL,
-            data={
-                "message": post,
-                "access_token": PAGE_TOKEN,
-            },
-            timeout=30,
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        resp = model.generate_content(user_text)
+        # This handles all Gemini formats
+        if hasattr(resp, 'text') and resp.text:
+            return resp.text.strip()
+        if resp.candidates:
+            return resp.candidates[0].content.parts[0].text.strip()
+    except Exception as e:
+        print(f"Gemini failed: {e}")
 
-        try:
-            data = response.json()
-        except ValueError:
-            log.error(
-                "ERROR | stage=facebook_json | status=%s",
-                response.status_code,
-            )
-            raise RuntimeError("Facebook returned invalid JSON")
+    return "Sorry, try again"
 
-        if not response.ok or not data.get("id"):
-            error = data.get("error", {})
-
-            if isinstance(error, dict):
-                code = error.get("code", "unknown")
-                message = str(
-                    error.get("message", "Unknown error")
-                )[:250]
-            else:
-                code = "unknown"
-                message = "Unknown Facebook error"
-
-            log.error(
-                "ERROR | stage=facebook | status=%s | "
-                "code=%s | message=%s",
-                response.status_code,
-                code,
-                message,
-            )
-            raise RuntimeError("Facebook publishing failed")
-
-        log.info(
-            "POSTED | topic=%s | id=%s",
-            topic,
-            data["id"],
-        )
-
-    except requests.RequestException as exc:
-        log.error(
-            "ERROR | stage=facebook_network | type=%s",
-            type(exc).__name__,
-        )
-        raise
-
-
-def main():
-    topic, context = random.choice(PILLARS)
-
-    log.info("START | bot=RealSatisfaction | lang=SW")
-    log.info("SELECTED | topic=%s", topic)
-
-    post = generate_post(topic, context)
-
-    log.info("MODERATION_CHECK | topic=%s", topic)
-
-    publish_post(post, topic)
-
-    log.info("FINISHED | topic=%s", topic)
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        log.error(
-            "ERROR | type=%s | message=%s",
-            type(exc).__name__,
-            str(exc),
-        )
-        sys.exit(1)
+# Use it
+bot_text = get_ai_reply(user_message)
