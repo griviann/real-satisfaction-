@@ -1,45 +1,31 @@
-import os
-import json
-from datetime import datetime
-
-def log_autopsy(action, data, result):
-    line = f"{datetime.now()} | {action} | {data} | {result}\n"
-    with open("autopsy.log", "a") as f:
-        f.write(line)
-    print(line)
-
-def ai_handler(action_type, data):
-    text = str(data.get("text", "")).lower()
-    category = data.get("category", "")
-    bad_words = ["mjinga", "umbwa", "malaya", "shenzi", "fala"]
-    for w in bad_words:
-        if w in text:
-            result = {"decision": "HIDE", "reason": f"matusi {w}"}
-            log_autopsy(action_type, data, result)
-            return result
-    if "bunda" in text or "makalio" in text:
-        if "afya" in text or category == "health":
-            result = {"decision": "ALLOW", "reason": "bunda health allowed"}
-            log_autopsy(action_type, data, result)
-            return result
-    if action_type == "post_draft":
-        cat = data.get("category", "")
-        if cat in ["politics", "health", "news"]:
-            if not data.get("official_link"):
-                result = {"decision": "REJECT", "reason": "needs official_link"}
-                log_autopsy(action_type, data, result)
-                return result
-    result = {"decision": "ALLOW", "reason": "70pct joy 30pct trusted"}
-    log_autopsy(action_type, data, result)
-    return result
-
-def generate_post(topic, category):
-    official = "https://www.health.go.ke"
-    if category == "politics":
-        official = "https://www.iebc.or.ke"
-    draft = {"text": f"Tunza afya {topic}", "category": category, "official_link": official}
-    check = ai_handler("post_draft", draft)
-    if check["decision"] == "ALLOW":
-        return f"POSTED: {draft['text']}"
-    else:
-        return f"BLOCKED: {check['reason']}"
+# Ndani ya app.py - function moja inamaliza monotony
+def post_real():
+    import os, random, requests
+    from groq import Groq
+    
+    client = Groq(api_key=os.getenv('GROQ_API_KEY'))
+    topics = [
+        ("Afya", "https://health.go.ke"),
+        ("Budget", "https://treasury.go.ke"),
+        ("IEBC", "https://iebc.or.ke"),
+        ("Kilimo", "https://kilimo.go.ke")
+    ]
+    theme, link = random.choice(topics)
+    
+    prompt = f"Andika post ya Real Satisfaction kuhusu {theme} Kenya, 20 words max, Kiswahili, tone hopeful"
+    text = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    ).choices[0].message.content
+    
+    # HIDE mjinga filter
+    if any(w in text.lower() for w in ["mjinga", "punda"]):
+        return "HIDE"
+    
+    # Post direct bila Codemagic
+    token = os.getenv('FB_PAGE_ACCESS_TOKEN')
+    page_id = os.getenv('FB_PAGE_ID')
+    r = requests.post(f"https://graph.facebook.com/{page_id}/feed",
+                      data={"message": f"{text} {link}", "access_token": token})
+    print(r.text)
+    return text
