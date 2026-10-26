@@ -1,20 +1,27 @@
-
-# --- ENV ---
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-PAGE_TOKEN = (
-    os.getenv("FB_PAGE_ACCESS_TOKEN")
-    or os.getenv("PAGE_TOKEN")
-    or os.getenv("FB_PAGE_TOKEN")
-)
-
-PAGE_ID = os.getenv("FB_PAGE_ID") or os.getenv("PAGE_ID")
-
-if not GROQ_API_KEY or not PAGE_TOKEN or not PAGE_ID:
-    log.error(
-        "MISSING ENV | "
-        f"GROQ={'OK' if GROQ_API_KEY else 'MISSING'} | "
-        f"PAGE_TOKEN={'OK' if PAGE_TOKEN else 'MISSING'} | "
-        f"PAGE_ID={'OK' if PAGE_ID else 'MISSING'}"
-    )
-    sys.exit(1)
+name: RealSatisfaction Bot
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+concurrency:
+  group: fb-post
+  cancel-in-progress: false
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python -u app.py
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          FB_APP_SCRET: ${{ secrets.FB_APP_SCRET }}
