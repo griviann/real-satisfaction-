@@ -1,25 +1,11 @@
-workflows:
-  real-satisfaction-live:
-    name: Real Satisfaction Handler Live
-    max_build_duration: 10
-    instance_type: mac_mini_m2
-    environment:
-      groups:
-        - real_satisfaction_keys
-      vars:
-        VERIFY_TOKEN: "RealSatisfactionVerify2026"
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-    scripts:
-      - name: Install
-        script: |
-          pip3 install -r requirements.txt
-      - name: Test 8 Objectives
-        script: |
-          python3 -c "from app import ai_handler; print(ai_handler('post_draft', {'text': 'Tunza bunda afya', 'category': 'health', 'official_link': 'https://www.health.go.ke'})); print(ai_handler('incoming_comment', {'text': 'mjinga'}))"
-      - name: Post to Page
-        script: |
-          python3 -c "from app import generate_post; print(generate_post('Budget 2026', 'politics'))"
-    artifacts:
-      - autopsy.log
+- name: Post to Page
+  script: |
+    python3 << 'PY'
+    import os, requests
+    token = os.getenv('FB_PAGE_ACCESS_TOKEN')
+    page_id = os.getenv('FB_PAGE_ID')
+    text = "Tunza afya Budget 2026 https://www.iebc.or.ke"
+    url = f"https://graph.facebook.com/{page_id}/feed"
+    r = requests.post(url, data={"message": text, "access_token": token, "link": "https://www.iebc.or.ke"})
+    print(r.text)
+    PY
