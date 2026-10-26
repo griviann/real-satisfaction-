@@ -1,19 +1,18 @@
-name: REAL Auto Post
+name: REAL Auto Comment Reply
 on:
   schedule:
-    - cron: '0 6 * * *'   # 9AM Nairobi auto
-    - cron: '0 15 * * *'  # 6PM Nairobi auto
+    - cron: '*/15 * * * *'
   workflow_dispatch:
-
 jobs:
-  post:
+  reply:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
       - run: pip install requests
-      - run: python app.py
+      - run: python comment_bot.py
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
