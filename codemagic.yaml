@@ -1,17 +1,32 @@
-- name: Post to Page
-  script: |
-    python3 << 'PY'
-    import os, requests, json, random
-    from app import generate_post  # function yako ya AI
-
-    token = os.getenv('FB_PAGE_ACCESS_TOKEN')
-    page_id = os.getenv('FB_PAGE_ID')
-
-    # Generate mpya, si hardcode
-    post = generate_post()  # itarudi {'text': ..., 'official_link': ...}
-    text = f"{post['text']} {post['official_link']}"
-
-    url = f"https://graph.facebook.com/{page_id}/feed"
-    r = requests.post(url, data={"message": text, "access_token": token, "link": post['official_link']})
-    print(f"POSTED DYNAMIC: {text} -> {r.text}")
-    PY
+      - name: Post to Page
+        script: |
+          python3 << 'PY'
+          import os, requests, random, datetime
+          from groq import Groq
+          
+          client = Groq(api_key=os.getenv('GROQ_API_KEY'))
+          
+          topics = [
+              {"theme": "Afya Mashinani", "link": "https://www.health.go.ke", "prompt": "Andika post fupi ya Real Satisfaction kuhusu afya mashinani Kenya, tone ya matumaini, bila matusi"},
+              {"theme": "Budget 2026 Wananchi", "link": "https://www.treasury.go.ke", "prompt": "Andika post kuhusu bajeti 2026 inavyogusa mwananchi wa kawaida, tone ya joy 70% trusted 30%"},
+              {"theme": "IEBC na Amani", "link": "https://www.iebc.or.ke", "prompt": "Andika post kuhusu IEBC na umuhimu wa amani, tone ya kitaifa, link rasmi"},
+              {"theme": "Kilimo Biashara", "link": "https://www.kilimo.go.ke", "prompt": "Andika post kuhusu kilimo biashara kwa vijana, tone ya Real Satisfaction"},
+          ]
+          
+          chosen = random.choice(topics)
+          
+          # Generate dynamic na Groq - si hardcode
+          completion = client.chat.completions.create(
+              model="llama-3.3-70b-versatile",
+              messages=[{"role": "user", "content": chosen["prompt"] + " - max 25 words, Kiswahili"}]
+          )
+          text = completion.choices[0].message.content.strip()
+          full_text = f"{text} {chosen['link']} #RealSatisfaction"
+          
+          # Post kwa Facebook
+          token = os.getenv('FB_PAGE_ACCESS_TOKEN')
+          page_id = os.getenv('FB_PAGE_ID')
+          url = f"https://graph.facebook.com/{page_id}/feed"
+          r = requests.post(url, data={"message": full_text, "access_token": token, "link": chosen["link"]})
+          print(f"POSTED DYNAMIC [{chosen['theme']}]: {full_text} -> {r.text}")
+          PY
