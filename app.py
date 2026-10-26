@@ -1,4 +1,3 @@
-
 import os
 import sys
 import random
@@ -80,7 +79,7 @@ GROQ_URL = (
     "https://api.groq.com/openai/v1/chat/completions"
 )
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "llama-3.1-8b-instant"
 
 # Set FACEBOOK_API_VERSION as a GitHub variable if needed.
 # Verify the version is supported by your Meta app.
@@ -90,7 +89,6 @@ FACEBOOK_URL = (
     f"https://graph.facebook.com/"
     f"{API_VERSION}/{PAGE_ID}/feed"
 )
-
 
 def generate_post(topic, context):
     """Generate a short Kiswahili Facebook post."""
@@ -157,7 +155,8 @@ def generate_post(topic, context):
         )
         raise RuntimeError("Groq returned no choices")
 
-    post = choices[0].get("message", {}).get("content", "")
+    message = choices[0].get("message", {})
+    post = message.get("content") or message.get("reasoning_content") or ""
     post = post.strip()
 
     if not post:
@@ -170,7 +169,6 @@ def generate_post(topic, context):
 
     log.info("GROQ_OK | characters=%s", len(post))
     return post
-
 
 def moderate_post(post, topic):
     """Hide posts containing configured blocked words."""
@@ -186,7 +184,6 @@ def moderate_post(post, topic):
             return False
 
     return True
-
 
 def publish_post(post, topic):
     """Publish an approved post to the Facebook Page."""
@@ -247,7 +244,6 @@ def publish_post(post, topic):
         )
         raise
 
-
 def main():
     topic, context = random.choice(PILLARS)
 
@@ -261,7 +257,6 @@ def main():
     publish_post(post, topic)
 
     log.info("FINISHED | topic=%s", topic)
-
 
 if __name__ == "__main__":
     try:
