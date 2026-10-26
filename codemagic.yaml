@@ -1,11 +1,17 @@
 - name: Post to Page
   script: |
     python3 << 'PY'
-    import os, requests
+    import os, requests, json, random
+    from app import generate_post  # function yako ya AI
+
     token = os.getenv('FB_PAGE_ACCESS_TOKEN')
     page_id = os.getenv('FB_PAGE_ID')
-    text = "Tunza afya Budget 2026 https://www.iebc.or.ke"
+
+    # Generate mpya, si hardcode
+    post = generate_post()  # itarudi {'text': ..., 'official_link': ...}
+    text = f"{post['text']} {post['official_link']}"
+
     url = f"https://graph.facebook.com/{page_id}/feed"
-    r = requests.post(url, data={"message": text, "access_token": token, "link": "https://www.iebc.or.ke"})
-    print(r.text)
+    r = requests.post(url, data={"message": text, "access_token": token, "link": post['official_link']})
+    print(f"POSTED DYNAMIC: {text} -> {r.text}")
     PY
