@@ -7,42 +7,47 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 def ai_reply(comment):
     try:
         r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             json={
-                "model": "openai/gpt-oss-20b",
-                "messages": [{"role": "user", "content": f"Reply to this Facebook comment as REAL page (Nairobi jackets + lifestyle). Same language as comment (EN/SW/Sheng), 1 sentence, friendly, if asking price say DM. Comment: {comment}"}],
-                "temperature": 0.7,
-                "max_tokens": 80
-            }, timeout=30)
-        return r.json()['choices'][0]['message']['content'].strip()
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": """You are REAL Kenyan youth mentor + thrift shop owner in Eldoret. Replica of friendly Meta AI.
+Mission: Make Kenyan society better - social, psychological, depression support, economy pressure, tone down political animosity, unity. sisi wote ni Wakenya.
+If shop question: reply warm + DM tuongee once. If sad/depressed: empathy, not alone, talk to trusted person. If politics hate: promote peace, no side-taking.
+Rules: 1-2 sentences, 1 emoji, sheng mix, real human, never repeat tuongee twice, never say you are AI."""
+                    },
+                    {"role": "user", "content": f"Comment: '{comment}'"}
+                ],
+                "temperature": 0.8,
+                "max_tokens": 100
+            }, timeout=20)
+        data = r.json()
+        text = data['choices'][0]['message']['content'].strip() if 'choices' in data and data['choices'] else "Poa bro, DM tuongee 🙏"
+        return text.replace("tuongee tuongee", "tuongee")
     except Exception as e:
-        print(f"Groq Error: {e}")
-        return "Asante sana! DM tuongeze 🙏"
+        print(f"Groq error: {e}")
+        return "Poa bro, DM tuongee 🙏"
 
 def run():
     try:
         posts = requests.get(f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/posts?access_token={FB_TOKEN}&limit=3").json()
-        print(f"Posts found: {posts}")
         for post in posts.get('data', []):
             pid = post['id']
-            comments = requests.get(f"https://graph.facebook.com/v20.0/{pid}/comments?access_token={FB_TOKEN}&filter=stream").json()
-            print(f"Comments for {pid}: {comments}")
+            comments = requests.get(f"https://graph.facebook.com/v20.0/{pid}/comments?access_token={FB_TOKEN}&filter=stream&fields=id,message,from").json()
             for c in comments.get('data', []):
-                # Skip if comment is from page itself
                 if c.get('from', {}).get('id') == FB_PAGE_ID:
-                    print(f"Skipped own comment {c['id']}")
                     continue
-                replies = requests.get(f"https://graph.facebook.com/v20.0/{c['id']}/comments?access_token={FB_TOKEN}").json()
-                if replies.get('data'):
-                    print(f"Already replied to {c['id']}")
+                check = requests.get(f"https://graph.facebook.com/v20.0/{c['id']}/comments?access_token={FB_TOKEN}").json()
+                if check.get('data'):
                     continue
-                reply_text = ai_reply(c['message'])
-                resp = requests.post(f"https://graph.facebook.com/v20.0/{c['id']}/comments",
+                reply_text = ai_reply(c.get('message',''))
+                requests.post(f"https://graph.facebook.com/v20.0/{c['id']}/comments",
                     data={"message": reply_text, "access_token": FB_TOKEN})
-                print(f"Replied to {c['id']}: {reply_text}")
-                print(f"FB API Response: {resp.text} Status: {resp.status_code}")
+                print(f"Replied: {reply_text}")
     except Exception as e:
         print(f"Error: {e}")
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     run()
