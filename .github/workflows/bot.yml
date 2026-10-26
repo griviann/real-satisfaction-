@@ -14,8 +14,7 @@ if not GROQ_API_KEY or not PAGE_TOKEN or not PAGE_ID:
     log.error(
         "MISSING ENV | "
         f"GROQ={'OK' if GROQ_API_KEY else 'MISSING'} | "
-        f"PAGE_TOKEN={'OK' if PAGE_ACCESS_TOKEN else 'MISSING'} | "
+        f"PAGE_TOKEN={'OK' if PAGE_TOKEN else 'MISSING'} | "
         f"PAGE_ID={'OK' if PAGE_ID else 'MISSING'}"
     )
     sys.exit(1)
-    
