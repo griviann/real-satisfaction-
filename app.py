@@ -1,52 +1,64 @@
-import os, random, requests
-from groq import Groq
+import os, random, logging, sys, requests
 
-def post_real():
-    api_key = os.getenv('GROQ_API_KEY')
-    if not api_key:
-        print("Missing GROQ_API_KEY")
-        return
-    
-    client = Groq(api_key=api_key)
-    
-    topics = [
-        ("Afya mashinani", "https://www.health.go.ke", "Afya mashinani Kenya na matumaini"),
-        ("Budget 2026", "https://www.treasury.go.ke", "Bajeti 2026 inagusa mwananchi wa kawaida"),
-        ("IEBC na Amani", "https://www.iebc.or.ke", "IEBC na umuhimu wa amani ya taifa"),
-        ("Kilimo biashara", "https://www.kilimo.go.ke", "Kilimo biashara kwa vijana wa Kenya"),
-        ("Elimu bure", "https://www.education.go.ke", "Elimu bora kwa kila mtoto"),
-        ("Utalii Kenya", "https://www.tourism.go.ke", "Utalii wa ndani unainua uchumi"),
-        ("Maji safi", "https://www.water.go.ke", "Maji safi kwa kila boma"),
-        ("Ajira vijana", "https://www.labour.go.ke", "Ajira na stadi kwa vijana"),
-    ]
-    
-    theme, link, desc = random.choice(topics)
-    
-    prompt = f"Andika post fupi ya Real Satisfaction kuhusu {desc}, Kiswahili sanifu, 22 words max, hopeful, joy 70% trusted 30%, bila matusi"
-    
-    resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    text = resp.choices[0].message.content.strip()
-    
-    # HIDE mjinga / punda filter
-    if any(w in text.lower() for w in ["mjinga", "punda", "matako", "umbwa"]):
-        print(f"HIDE filtered: {text}")
-        return "HIDE"
-    
-    full = f"{text} {link} #RealSatisfaction #Kenya2026"
-    
-    token = os.getenv('FB_PAGE_ACCESS_TOKEN')
-    page_id = os.getenv('FB_PAGE_ID')
-    if token and page_id:
-        url = f"https://graph.facebook.com/{page_id}/feed"
-        r = requests.post(url, data={"message": full, "access_token": token, "link": link})
-        print(f"POSTED [{theme}]: {full} -> {r.text}")
-    else:
-        print(f"DRY RUN [{theme}]: {full}")
-    
-    return full
+# === REAL SATISFACTION LOGGING ===
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s", handlers=[logging.StreamHandler(sys.stdout)], force=True)
+log = logging.getLogger("RealSatisfaction")
 
-if __name__ == "__main__":
-    post_real()
+# === YOUR 7 PILLARS COVERAGE + LINKS ===
+TOPICS = {
+    "Afya mashinani": "https://realsatisfaction.co.ke/afya",
+    "Kilimo na Chakula": "https://realsatisfaction.co.ke/kilimo",
+    "Budget 2026 na Uchumi": "https://realsatisfaction.co.ke/budget2026",
+    "IEBC na Uongozi": "https://realsatisfaction.co.ke/iebc",
+    "Elimu na Vijana": "https://realsatisfaction.co.ke/elimu",
+    "Mazingira Lake Victoria": "https://realsatisfaction.co.ke/mazingira",
+    "Biashara Ndogo": "https://realsatisfaction.co.ke/biashara"
+}
+
+# MOST INTEREST - weighted 2x
+PRIORITY = ["Afya mashinani", "Kilimo na Chakula", "Budget 2026 na Uchumi"]
+weighted_list = list(TOPICS.keys()) + PRIORITY
+ENGLISH_TOPICS = {"Budget 2026 na Uchumi", "IEBC na Uongozi"}
+
+topic = random.choice(weighted_list)
+link = TOPICS[topic]
+is_english = topic in ENGLISH_TOPICS
+log.info(f"SELECTED | topic={topic} | lang={'EN' if is_english else 'SW'}")
+
+# === SECRETS ===
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+PAGE_TOKEN = os.getenv("PAGE_TOKEN")
+PAGE_ID = os.getenv("PAGE_ID")
+
+# === PROMPT WITH JUDGEMENT ===
+if is_english:
+    prompt = f"Write hopeful factual Facebook post max 22 words about {topic} Kenya. No insults, hopeful. End with {link} #RealSatisfaction"
+else:
+    prompt = f"Andika post ya Kiswahili matumaini maneno 22 max kuhusu {topic}. Tumaini ukweli bila matusi. Mwisho weka {link} #RealSatisfaction"
+
+# === GROQ CALL ===
+try:
+    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        json={"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "max_tokens": 80},
+        timeout=30)
+    text = r.json()["choices"][0]["message"]["content"].strip()
+    log.info(f"GROQ_OK | {text}")
+except Exception as e:
+    log.error(f"GROQ_FAIL | {e}")
+    sys.exit(1)
+
+# === FILTER - BANNED WORDS ===
+BANNED = ["mjinga", "punda", "umbwa"]
+if any(w in text.lower() for w in BANNED):
+    log.warning(f"FILTERED | banned word in: {text}")
+    sys.exit(0)
+
+# === POST TO FACEBOOK ===
+try:
+    fb = requests.post(f"https://graph.facebook.com/{PAGE_ID}/feed",
+        data={"message": text, "access_token": PAGE_TOKEN}, timeout=30)
+    log.info(f"POSTED | fb_id={fb.json().get('id')} | {text}")
+except Exception as e:
+    log.error(f"FB_FAIL | {e}")
+    sys.exit(1)
