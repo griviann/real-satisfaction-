@@ -79,7 +79,7 @@ GROQ_URL = (
     "https://api.groq.com/openai/v1/chat/completions"
 )
 
-GROQ_MODEL = "llama-3.1-8b-instant"
+GROQ_MODEL = "openai/gpt-oss-20b"
 
 # Set FACEBOOK_API_VERSION as a GitHub variable if needed.
 # Verify the version is supported by your Meta app.
