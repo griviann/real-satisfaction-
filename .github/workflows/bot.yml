@@ -1,34 +1,19 @@
-
-name: Bot
-
+name: REAL Auto Post
 on:
   schedule:
-    - cron: '17 */3 * * *'
+    - cron: '0 6 * * *'   # 9AM Nairobi auto
+    - cron: '0 15 * * *'  # 6PM Nairobi auto
   workflow_dispatch:
-
-concurrency:
-  group: realsatisfaction-bot
-  cancel-in-progress: false
 
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install groq requests
-
-      - name: Run RealSatisfaction bot
-        run: python -u app.py
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install requests
+      - run: python app.py
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
