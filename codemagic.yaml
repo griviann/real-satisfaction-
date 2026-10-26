@@ -1,32 +1,42 @@
-      - name: Post to Page
+workflows:
+  real-satisfaction:
+    name: Real Satisfaction Dynamic
+    instance_type: linux_x2
+    max_build_duration: 20
+    environment:
+      groups:
+        - fb_tokens
+    scripts:
+      - name: Install deps
+        script: |
+          pip3 install -r requirements.txt
+          pip3 install groq requests
+      - name: Post Dynamic - No Monotony
         script: |
           python3 << 'PY'
-          import os, requests, random, datetime
+          import os, random, requests
           from groq import Groq
           
           client = Groq(api_key=os.getenv('GROQ_API_KEY'))
-          
           topics = [
-              {"theme": "Afya Mashinani", "link": "https://www.health.go.ke", "prompt": "Andika post fupi ya Real Satisfaction kuhusu afya mashinani Kenya, tone ya matumaini, bila matusi"},
-              {"theme": "Budget 2026 Wananchi", "link": "https://www.treasury.go.ke", "prompt": "Andika post kuhusu bajeti 2026 inavyogusa mwananchi wa kawaida, tone ya joy 70% trusted 30%"},
-              {"theme": "IEBC na Amani", "link": "https://www.iebc.or.ke", "prompt": "Andika post kuhusu IEBC na umuhimu wa amani, tone ya kitaifa, link rasmi"},
-              {"theme": "Kilimo Biashara", "link": "https://www.kilimo.go.ke", "prompt": "Andika post kuhusu kilimo biashara kwa vijana, tone ya Real Satisfaction"},
+              {"t": "Afya mashinani Kenya", "link": "https://www.health.go.ke"},
+              {"t": "Budget 2026 kwa mwananchi", "link": "https://www.treasury.go.ke"},
+              {"t": "IEBC na amani", "link": "https://www.iebc.or.ke"},
+              {"t": "Kilimo biashara vijana", "link": "https://www.kilimo.go.ke"},
           ]
-          
           chosen = random.choice(topics)
           
-          # Generate dynamic na Groq - si hardcode
-          completion = client.chat.completions.create(
-              model="llama-3.3-70b-versatile",
-              messages=[{"role": "user", "content": chosen["prompt"] + " - max 25 words, Kiswahili"}]
-          )
-          text = completion.choices[0].message.content.strip()
-          full_text = f"{text} {chosen['link']} #RealSatisfaction"
+          prompt = f"Andika post fupi ya Real Satisfaction kuhusu {chosen['t']}, 20 words, Kiswahili, hopeful, bila matusi"
+          resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}])
+          text = resp.choices[0].message.content.strip()
           
-          # Post kwa Facebook
+          if "mjinga" in text.lower() or "punda" in text.lower():
+              print("HIDE - filtered")
+              exit(0)
+              
+          full = f"{text} {chosen['link']} #RealSatisfaction"
           token = os.getenv('FB_PAGE_ACCESS_TOKEN')
           page_id = os.getenv('FB_PAGE_ID')
-          url = f"https://graph.facebook.com/{page_id}/feed"
-          r = requests.post(url, data={"message": full_text, "access_token": token, "link": chosen["link"]})
-          print(f"POSTED DYNAMIC [{chosen['theme']}]: {full_text} -> {r.text}")
+          r = requests.post(f"https://graph.facebook.com/{page_id}/feed", data={"message": full, "access_token": token, "link": chosen['link']})
+          print(f"POSTED: {full} -> {r.text}")
           PY
