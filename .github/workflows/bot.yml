@@ -19,5 +19,5 @@ jobs:
       - run: python -u app.py
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          PAGE_TOKEN: ${{ secrets.PAGE_TOKEN }}
-          PAGE_ID: ${{ secrets.PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
