@@ -1,64 +1,42 @@
-import os, random, logging, sys, requests
+import os, sys, requests, logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+log = logging.getLogger()
 
-# === REAL SATISFACTION LOGGING ===
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s", handlers=[logging.StreamHandler(sys.stdout)], force=True)
-log = logging.getLogger("RealSatisfaction")
-
-# === YOUR 7 PILLARS COVERAGE + LINKS ===
-TOPICS = {
-    "Afya mashinani": "https://realsatisfaction.co.ke/afya",
-    "Kilimo na Chakula": "https://realsatisfaction.co.ke/kilimo",
-    "Budget 2026 na Uchumi": "https://realsatisfaction.co.ke/budget2026",
-    "IEBC na Uongozi": "https://realsatisfaction.co.ke/iebc",
-    "Elimu na Vijana": "https://realsatisfaction.co.ke/elimu",
-    "Mazingira Lake Victoria": "https://realsatisfaction.co.ke/mazingira",
-    "Biashara Ndogo": "https://realsatisfaction.co.ke/biashara"
-}
-
-# MOST INTEREST - weighted 2x
-PRIORITY = ["Afya mashinani", "Kilimo na Chakula", "Budget 2026 na Uchumi"]
-weighted_list = list(TOPICS.keys()) + PRIORITY
-ENGLISH_TOPICS = {"Budget 2026 na Uchumi", "IEBC na Uongozi"}
-
-topic = random.choice(weighted_list)
-link = TOPICS[topic]
-is_english = topic in ENGLISH_TOPICS
-log.info(f"SELECTED | topic={topic} | lang={'EN' if is_english else 'SW'}")
-
-# === SECRETS ===
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-PAGE_TOKEN = os.getenv("PAGE_TOKEN")
-PAGE_ID = os.getenv("PAGE_ID")
+PAGE_TOKEN = os.getenv("PAGE_TOKEN") or os.getenv("FB_PAGE_TOKEN")
+PAGE_ID = os.getenv("PAGE_ID") or os.getenv("FB_PAGE_ID")
 
-# === PROMPT WITH JUDGEMENT ===
-if is_english:
-    prompt = f"Write hopeful factual Facebook post max 22 words about {topic} Kenya. No insults, hopeful. End with {link} #RealSatisfaction"
-else:
-    prompt = f"Andika post ya Kiswahili matumaini maneno 22 max kuhusu {topic}. Tumaini ukweli bila matusi. Mwisho weka {link} #RealSatisfaction"
-
-# === GROQ CALL ===
-try:
-    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-        json={"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "max_tokens": 80},
-        timeout=30)
-    text = r.json()["choices"][0]["message"]["content"].strip()
-    log.info(f"GROQ_OK | {text}")
-except Exception as e:
-    log.error(f"GROQ_FAIL | {e}")
+if not GROQ_API_KEY:
+    log.error("MISSING GROQ_API_KEY")
     sys.exit(1)
 
-# === FILTER - BANNED WORDS ===
-BANNED = ["mjinga", "punda", "umbwa"]
-if any(w in text.lower() for w in BANNED):
-    log.warning(f"FILTERED | banned word in: {text}")
-    sys.exit(0)
+topic = "Biashara Ndogo"
+lang = "SW"
+prompt = f"Andika post fupi ya Facebook kuhusu {topic} Kisumu, kwa Kiswahili sanifu, watu wa biashara ndogo. Max 2 sentences."
 
-# === POST TO FACEBOOK ===
-try:
-    fb = requests.post(f"https://graph.facebook.com/{PAGE_ID}/feed",
-        data={"message": text, "access_token": PAGE_TOKEN}, timeout=30)
-    log.info(f"POSTED | fb_id={fb.json().get('id')} | {text}")
-except Exception as e:
-    log.error(f"FB_FAIL | {e}")
+log.info(f"SELECTED | topic={topic} | lang={lang}")
+
+resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
+    headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+    json={"model": "llama-3.1-8b-instant", "messages": [{"role":"user","content":prompt}], "max_tokens": 100},
+    timeout=30)
+
+data = resp.json()
+log.info(f"GROQ_RAW_RESPONSE | {data}")
+
+if "choices" not in data:
+    log.error(f"GROQ_NO_CHOICES | {data}")
+    sys.exit(1)
+
+text = data["choices"][0]["message"]["content"].strip()
+log.info(f"GROQ_OK | {text}")
+
+# Facebook post
+fb_resp = requests.post(f"https://graph.facebook.com/{PAGE_ID}/feed",
+    data={"message": text, "access_token": PAGE_TOKEN})
+log.info(f"FB_RESPONSE | {fb_resp.json()}")
+if fb_resp.status_code == 200:
+    log.info(f"POSTED | fb_id={fb_resp.json().get('id')}")
+else:
+    log.error(f"FB_FAIL | {fb_resp.text}")
     sys.exit(1)
