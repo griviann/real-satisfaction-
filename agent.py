@@ -4,7 +4,6 @@ GROQ_KEY = os.getenv("GROQ_API_KEY")
 FB_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 
-# VERIFIED FREE MODEL - Production as of 26 Oct 2026
 MODEL_ID = "openai/gpt-oss-20b"
 
 SOUL = """
@@ -17,7 +16,7 @@ Rules:
 - If sad/healing, no sell, just heal and say DM open.
 - Under 25 words for comments, 2-3 sentences for posts.
 - 1 emoji max.
-- You are owner vibe, not AI.
+- You are owner vibe, not AI. Output ONLY final post, no thinking.
 """
 
 def ask_ai(prompt, temp=0.95):
@@ -27,16 +26,26 @@ def ask_ai(prompt, temp=0.95):
             "model": MODEL_ID,
             "messages": [
                 {"role": "system", "content": SOUL},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt + "\n\nOutput only final post text."}
             ],
             "temperature": temp,
-            "max_tokens": 180
+            "max_tokens": 300
         }, timeout=30)
     data = r.json()
-    print(f"Groq: {data}")
-    if "choices" not in data:
-        raise Exception(f"Groq error: {data}")
-    return data['choices'][0]['message']['content'].strip()
+    msg = data['choices'][0]['message']
+    content = msg.get('content','').strip()
+    reasoning = msg.get('reasoning','').strip()
+    if not content and reasoning:
+        # gpt-oss puts answer sometimes in reasoning, take last lines
+        lines = [l for l in reasoning.split('\n') if len(l.strip())>15]
+        if lines:
+            content = lines[-1].strip()
+        else:
+            content = reasoning[-200:].strip()
+    if not content or len(content) < 10:
+        content = "Nairobi baridi inacheza but one thrift jacket inatosha. Layer, tie waist, pop collar - uko sorted. Ni style gani unapenda?"
+    print(f"Final: {content}")
+    return content
 
 def post_job():
     topics = [
@@ -59,7 +68,6 @@ def reply_job():
         for c in comments:
             cid = c['id']
             msg = c.get('message','')
-            # skip if already replied
             rep_url = f"https://graph.facebook.com/v20.0/{cid}/comments?access_token={FB_TOKEN}"
             if len(requests.get(rep_url).json().get('data', [])) > 0:
                 continue
