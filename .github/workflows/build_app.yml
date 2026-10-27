@@ -19,7 +19,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
-      - run: flutter pub get
+      - name: Fix Gradle project
+        run: |
+          flutter create . --platforms=android --org com.griviann.realsatisfaction || true
+          flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
