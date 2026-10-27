@@ -18,10 +18,11 @@ jobs:
           flutter-version: '3.22.0'
       - name: Regenerate Android project
         run: |
+          sed -i 's/name:.*/name: real_satisfaction/' pubspec.yaml
           rm -rf android
-          flutter create -t app . --org com.griviann.realsatisfaction --platforms=android
+          flutter create -t app --project-name real_satisfaction --org com.griviann --platforms=android .
           flutter pub get
-      - run: flutter build apk --release --verbose
+      - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
