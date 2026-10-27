@@ -4,15 +4,15 @@ GROQ_KEY = os.getenv("GROQ_API_KEY")
 FB_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 
-MODEL_ID = "openai/gpt-oss-20b" # KEEP THIS - IT WORKS
+MODEL_ID = "openai/gpt-oss-20b"
 
 SOUL = """
-You are REAL SATISFACTION - Kenyan thrift brand soul. Premium jackets 1500-3500 KES, M-XXL, CBD free delivery.
-Vibe: healing + hustle, sheng, warm, real owner, not AI.
-You MUST think inside, then output ONLY final Facebook post (2-3 lines, 1 emoji max, ends with question).
+You are REAL SATISFACTION - owner of Kenyan thrift brand. Jackets 1500-3500 KES, M-XXL, CBD free delivery, countrywide.
+Voice: sheng, Swahili, English mix, warm, real, hustler healer, not AI robot.
+You MUST internally reason, then output ONLY 1 final Facebook post. 2-3 sentences max, 1 emoji max, end with question. Never repeat old posts.
 """
 
-def ask_ai(prompt, temp=0.8):
+def ask_ai(prompt, temp=0.85):
     r = requests.post("https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
         json={
@@ -23,7 +23,7 @@ def ask_ai(prompt, temp=0.8):
             ],
             "temperature": temp,
             "max_tokens": 1024,
-            "reasoning_effort": "low"  # <-- LET IT REASON BUT FAST
+            "reasoning_effort": "low"
         }, timeout=60)
     data = r.json()
     print(f"RAW: {data}")
@@ -31,31 +31,29 @@ def ask_ai(prompt, temp=0.8):
     content = msg.get('content','').strip()
     reasoning = msg.get('reasoning','').strip()
 
-    # If content empty, reasoning has final answer at end - extract it
     if not content and reasoning:
-        # gpt-oss puts final answer after last \n\n
-        parts = reasoning.strip().split('\n\n')
-        content = parts[-1] if parts else reasoning[-300:]
-        # clean thinking tags if any
-        content = content.replace('**Final Answer:**','').replace('Final:','').strip()
+        parts = [p.strip() for p in reasoning.split('\n\n') if len(p.strip()) > 20]
+        content = parts[-1] if parts else reasoning[-400:].strip()
+        content = content.replace('**Final Answer:**','').replace('Final Post:','').strip()
 
     if not content or len(content) < 15:
-        # still empty? use middle of reasoning not fallback coded
-        content = reasoning[-250:].strip() if reasoning else "Leo baridi ya Nairobi? Jacket moja safi inabeba story yako. Uko tayari ku-rock?"
+        content = reasoning[-350:].strip() if reasoning else "Hustle ni hard but uko si alone. DM tuongee?"
 
-    print(f"Final Post: {content}")
+    print(f"FINAL: {content}")
     return content
 
 def post_job():
-    topics = [
-        "Write healing + jacket story: jacket kept someone warm during hard hustle night in Nairobi, soft sell, end with question",
-        "Write mental health post for hustler youth: pressure ya mtaa, no selling, real talk, invite DM",
-        "Write style tip: how to rock one thrift jacket 3 ways in Nairobi cold, useful, question at end"
+    # open topic - never coded, AI decides
+    prompts = [
+        "Create a healing post for hustlers feeling pressure ya mtaa, no selling, invite DM, end with question",
+        "Create a jacket story: how one thrift jacket warmed someone during Nairobi cold hustle night, soft sell 1500-3500, end with question",
+        "Create style tip: rock one thrift jacket 3 ways in Nairobi, useful, end with question",
+        "Create real talk: dreams vs doubts for Nairobi youth, healing before hustle, end with question"
     ]
-    text = ask_ai(random.choice(topics))
+    text = ask_ai(random.choice(prompts))
     url = f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/feed"
     resp = requests.post(url, data={"message": text, "access_token": FB_TOKEN})
-    print(f"POSTED -> {resp.text}")
+    print(f"POST RESPONSE: {resp.text}")
 
 def reply_job():
     posts_url = f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/posts?limit=3&access_token={FB_TOKEN}"
@@ -67,13 +65,13 @@ def reply_job():
         for c in comments:
             cid = c['id']
             msg = c.get('message','')
-            rep_url = f"https://graph.facebook.com/v20.0/{cid}/comments?access_token={FB_TOKEN}"
-            if len(requests.get(rep_url).json().get('data', [])) > 0:
+            rep_check = f"https://graph.facebook.com/v20.0/{cid}/comments?access_token={FB_TOKEN}"
+            if len(requests.get(rep_check).json().get('data', [])) > 0:
                 continue
-            reply = ask_ai(f"Customer commented: '{msg}'. Reply human, 20 words, sheng small, read intent.", temp=0.85)
+            reply = ask_ai(f"Customer commented: '{msg}'. Reply 20 words max, human, sheng small, understand intent (price/location/thanks).", temp=0.85)
             r = requests.post(f"https://graph.facebook.com/v20.0/{cid}/comments",
                               data={"message": reply, "access_token": FB_TOKEN})
-            print(f"REPLIED -> {r.text}")
+            print(f"REPLY RESPONSE: {r.text}")
 
 if __name__ == "__main__":
     post_job()
