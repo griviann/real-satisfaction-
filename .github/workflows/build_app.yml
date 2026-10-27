@@ -2,9 +2,6 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'lib/**'
-      - 'pubspec.yaml'
   workflow_dispatch:
 
 jobs:
@@ -19,11 +16,12 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
-      - name: Fix Gradle project
+      - name: Regenerate Android project
         run: |
-          flutter create . --platforms=android --org com.griviann.realsatisfaction || true
+          rm -rf android
+          flutter create -t app . --org com.griviann.realsatisfaction --platforms=android
           flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --verbose
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
